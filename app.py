@@ -1,44 +1,51 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from sklearn.metrics import classification_report, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# Load data
-cluster_data = pd.read_csv("clusters.csv")
-model_results = pd.read_csv("supervised_results.csv")
+# Load the dataset
+@st.cache_data  # Cache the data for faster loading
+def load_data():
+    return pd.read_csv("Dataset_clustering.csv")
 
-st.title("🔍 Final Project: Customer Behavior Analysis")
+df = load_data()
 
-# Tab 1: Unsupervised Results
-with st.expander("📊 Unsupervised Clustering"):
-    st.subheader("Customer Segments (KMeans)")
-    fig = px.scatter(
-        cluster_data, 
-        x="total_spending", 
-        y="order_frequency", 
-        color="Cluster",
-        title="Spending vs. Frequency by Cluster"
-    )
-    st.plotly_chart(fig)
+# Title of the app
+st.title("Customer Clustering Visualization")
 
-    # Cluster Metrics Table
-    st.subheader("Cluster Aggregations (Min/Avg/Max)")
-    st.dataframe(
-        cluster_data.groupby("Cluster").agg({
-            "total_spending": ["min", "mean", "max"],
-            "order_frequency": ["min", "mean", "max"],
-            "discount_sensitivity": ["min", "mean", "max"]
-        }),
-        use_container_width=True
-    )
+# Sidebar for user inputs
+st.sidebar.header("Filters")
+cluster_filter = st.sidebar.multiselect("Select Clusters", df["Cluster"].unique())
 
-# Tab 2: Supervised Results
-with st.expander("🎯 Supervised Model Performance"):
-    st.subheader("Classification Report")
-    st.write(classification_report(model_results["actual"], model_results["predicted"]))
+# Filter data based on user selection
+if cluster_filter:
+    df_filtered = df[df["Cluster"].isin(cluster_filter)]
+else:
+    df_filtered = df
 
-    # Confusion Matrix
-    st.subheader("Confusion Matrix")
-    cm = confusion_matrix(model_results["actual"], model_results["predicted"])
-    fig = px.imshow(cm, text_auto=True, labels=dict(x="Predicted", y="Actual"))
-    st.plotly_chart(fig)
+# Display the dataset
+st.subheader("Filtered Dataset")
+st.write(df_filtered)
+
+# Scatter Plot: Total Spending vs Order Frequency
+st.subheader("Scatter Plot: Total Spending vs Order Frequency")
+fig, ax = plt.subplots()
+sns.scatterplot(data=df_filtered, x="total_spending", y="order_frequency", hue="Cluster", ax=ax)
+st.pyplot(fig)
+
+# Stacked Bar Chart: Beverage Preferences by Cluster
+st.subheader("Beverage Preferences by Cluster")
+beverage_cols = ["Alcoholic Beverages_pct", "Juices_pct", "Soft Drinks_pct", "Water_pct"]
+beverage_means = df_filtered.groupby("Cluster")[beverage_cols].mean().T
+st.bar_chart(beverage_means)
+
+# Regional Distribution by Cluster
+st.subheader("Regional Distribution by Cluster")
+region_counts = df_filtered.groupby(["Region", "Cluster"]).size().unstack()
+st.bar_chart(region_counts)
+
+# Discount Sensitivity Comparison (Box Plot)
+st.subheader("Discount Sensitivity by Cluster")
+fig, ax = plt.subplots()
+sns.boxplot(data=df_filtered, x="Cluster", y="discount_sensitivity", ax=ax)
+st.pyplot(fig)
